@@ -396,10 +396,15 @@
             const timeoutId = setTimeout(() => controller.abort(), 5000);
 
             try {
-                await fetch(GRADIO_SERVER_URL, { mode: "no-cors", signal: controller.signal });
+                const response = await fetch(`${GRADIO_SERVER_URL}/config`, { signal: controller.signal });
                 clearTimeout(timeoutId);
-                dot.classList.remove("offline");
-                dot.classList.add("online");
+                if (response.ok) {
+                    dot.classList.remove("offline");
+                    dot.classList.add("online");
+                } else {
+                    dot.classList.remove("online");
+                    dot.classList.add("offline");
+                }
             } catch (err) {
                 clearTimeout(timeoutId);
                 dot.classList.remove("online");
