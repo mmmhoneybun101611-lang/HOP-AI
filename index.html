@@ -405,7 +405,11 @@
                 if (!response.ok) throw new Error("Bad status");
 
                 const data = await response.json();
-                const looksReal = data && typeof data === "object" && (data.version || data.components);
+                const looksReal =
+                    data &&
+                    typeof data.mode === "string" &&
+                    Array.isArray(data.components) &&
+                    data.components.length > 0;
 
                 if (looksReal) {
                     dot.classList.remove("offline");
