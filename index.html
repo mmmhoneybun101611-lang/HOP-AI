@@ -342,7 +342,7 @@
             const response = await fetch(`${GRADIO_SERVER_URL}/api/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ data: [message, JSON.stringify(historyPairs)] }),
+                body: JSON.stringify({ data: [message, JSON.stringify(historyPairs), getClientId()] }),
             });
             const result = await response.json();
             return result.data[0];
@@ -393,7 +393,7 @@
         async function checkServerStatus() {
             const dot = document.querySelector(".wordmark .dot");
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
 
             try {
                 const response = await fetch(`${GRADIO_SERVER_URL}/config`, {
@@ -424,8 +424,17 @@
             }
         }
 
+        function getClientId() {
+            let clientId = localStorage.getItem("hopai_client_id");
+            if (!clientId) {
+                clientId = "client_" + crypto.randomUUID();
+                localStorage.setItem("hopai_client_id", clientId);
+            }
+            return clientId;
+        }
+
         checkServerStatus();
-        setInterval(checkServerStatus, 15000);
+        setInterval(checkServerStatus, 1000);
 
         renderMessages();
         renderHistory();
