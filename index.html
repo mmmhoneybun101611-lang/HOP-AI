@@ -71,14 +71,56 @@
             font-size: 13px;
             color: #9C93B8;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            transition: background 0.15s ease, color 0.15s ease;
+            position: relative;
+        }
+        .history-item span.title {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            margin-bottom: 4px;
-            transition: background 0.15s ease, color 0.15s ease;
+            flex: 1;
         }
         .history-item:hover { background: #2E2645; color: #F1EEFF; }
         .history-item.active { background: #2E2645; color: #FFA23A; }
+        .history-menu-btn {
+            background: none;
+            border: none;
+            color: #726A8A;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+        }
+        .history-item:hover .history-menu-btn { display: block; }
+        .history-menu-btn:hover { background: #322A4A; color: #F1EEFF; }
+        .history-dropdown {
+            position: absolute;
+            right: 8px;
+            top: 32px;
+            background: #241D38;
+            border: 1px solid #322A4A;
+            border-radius: 8px;
+            overflow: hidden;
+            z-index: 10;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        }
+        .history-dropdown button {
+            display: block;
+            width: 100%;
+            padding: 8px 16px;
+            background: none;
+            border: none;
+            color: #FF6B6B;
+            font-size: 13px;
+            text-align: left;
+            cursor: pointer;
+        }
+        .history-dropdown button:hover { background: #322A4A; }
 
         /* --- Main --- */
         .main { flex: 1; display: flex; flex-direction: column; }
@@ -198,21 +240,74 @@
             localStorage.setItem("hopai_chats", JSON.stringify(chats));
         }
 
+        function closeAllDropdowns() {
+            document.querySelectorAll(".history-dropdown").forEach((el) => el.remove());
+        }
+
+        function deleteChat(index) {
+            const confirmed = confirm(`Permanently delete "${chats[index].title}"? This only removes it from your browser history, it does not affect training data.`);
+            if (!confirmed) return;
+
+            chats.splice(index, 1);
+            if (chats.length === 0) {
+                currentChatIndex = createNewChat();
+            } else if (currentChatIndex >= chats.length) {
+                currentChatIndex = chats.length - 1;
+            } else if (currentChatIndex === index) {
+                currentChatIndex = Math.max(0, index - 1);
+            } else if (currentChatIndex > index) {
+                currentChatIndex -= 1;
+            }
+            saveChats();
+            renderMessages();
+            renderHistory();
+        }
+
         function renderHistory() {
             const list = document.getElementById("history-list");
             list.innerHTML = "";
             chats.forEach((chat, i) => {
                 const item = document.createElement("div");
                 item.className = "history-item" + (i === currentChatIndex ? " active" : "");
-                item.textContent = chat.title;
-                item.onclick = () => {
+
+                const titleSpan = document.createElement("span");
+                titleSpan.className = "title";
+                titleSpan.textContent = chat.title;
+                titleSpan.onclick = () => {
                     currentChatIndex = i;
                     renderMessages();
                     renderHistory();
                 };
+
+                const menuBtn = document.createElement("button");
+                menuBtn.className = "history-menu-btn";
+                menuBtn.textContent = "⋮";
+                menuBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    const alreadyOpen = item.querySelector(".history-dropdown");
+                    closeAllDropdowns();
+                    if (alreadyOpen) return;
+
+                    const dropdown = document.createElement("div");
+                    dropdown.className = "history-dropdown";
+                    const deleteBtn = document.createElement("button");
+                    deleteBtn.textContent = "Delete permanently";
+                    deleteBtn.onclick = (ev) => {
+                        ev.stopPropagation();
+                        closeAllDropdowns();
+                        deleteChat(i);
+                    };
+                    dropdown.appendChild(deleteBtn);
+                    item.appendChild(dropdown);
+                };
+
+                item.appendChild(titleSpan);
+                item.appendChild(menuBtn);
                 list.appendChild(item);
             });
         }
+
+        document.addEventListener("click", closeAllDropdowns);
 
         function renderMessages() {
             const container = document.getElementById("messages");
