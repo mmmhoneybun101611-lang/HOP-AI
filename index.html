@@ -227,7 +227,7 @@
         // changes each time. Copy the "Running on public URL:" link
         // from Colab's output and paste it here, no trailing slash.
         // ============================================================
-        const GRADIO_SERVER_URL = "https://d567c4320514d604f3.gradio.live";
+        const GRADIO_SERVER_URL = "https://PASTE-YOUR-LINK-HERE.gradio.live";
 
         const PERSONA = "### System:\nYou are Hop AI, a helpful and friendly AI assistant. You answer clearly and stay consistent about who you are.\n\n";
 
@@ -342,12 +342,15 @@
             const postResponse = await fetch(`${GRADIO_SERVER_URL}/gradio_api/call/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "text/plain" },
-                body: JSON.stringify({ data: [message, JSON.stringify(historyPairs), getClientId()] }),
+                body: JSON.stringify({
+                    data: [message, JSON.stringify(historyPairs), getClientId()],
+                    session_hash: getClientId(),
+                }),
             });
             const postResult = await postResponse.json();
             const eventId = postResult.event_id;
             if (!eventId) {
-                throw new Error("No event_id returned from server");
+                throw new Error("No event_id returned from server: " + JSON.stringify(postResult));
             }
 
             const getResponse = await fetch(`${GRADIO_SERVER_URL}/gradio_api/call/chat/${eventId}`);
