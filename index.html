@@ -3,6 +3,9 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Hop</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -224,7 +227,7 @@
         // changes each time. Copy the "Running on public URL:" link
         // from Colab's output and paste it here, no trailing slash.
         // ============================================================
-        const GRADIO_SERVER_URL = "https://eb1ae6794b305e4ee4.gradio.live";
+        const GRADIO_SERVER_URL = "https://PASTE-YOUR-LINK-HERE.gradio.live";
 
         const PERSONA = "### System:\nYou are Hop AI, a helpful and friendly AI assistant. You answer clearly and stay consistent about who you are.\n\n";
 
@@ -246,9 +249,6 @@
         }
 
         function deleteChat(index) {
-            const confirmed = confirm(`Permanently delete "${chats[index].title}"? This only removes it from your browser history, it does not affect training data.`);
-            if (!confirmed) return;
-
             chats.splice(index, 1);
             if (chats.length === 0) {
                 currentChatIndex = createNewChat();
