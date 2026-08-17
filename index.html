@@ -227,7 +227,7 @@
         // changes each time. Copy the "Running on public URL:" link
         // from Colab's output and paste it here, no trailing slash.
         // ============================================================
-        const GRADIO_SERVER_URL = "https://b8d6c86ddb787a8e4a.gradio.live";
+        const GRADIO_SERVER_URL = "https://PASTE-YOUR-LINK-HERE.gradio.live";
 
         const PERSONA = "### System:\nYou are Hop AI, a helpful and friendly AI assistant. You answer clearly and stay consistent about who you are.\n\n";
 
@@ -341,7 +341,7 @@
         async function askServer(message, historyPairs) {
             const response = await fetch(`${GRADIO_SERVER_URL}/api/chat`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "text/plain" },
                 body: JSON.stringify({ data: [message, JSON.stringify(historyPairs), getClientId()] }),
             });
             const result = await response.json();
@@ -371,6 +371,7 @@
             try {
                 reply = await askServer(text, historyPairs);
             } catch (err) {
+                console.error("Hop AI request failed:", err);
                 reply = "SERVERS ARE DOWN PLEASE COME BACK LATER";
             }
 
