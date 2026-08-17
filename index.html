@@ -167,14 +167,31 @@
             border: 1px solid #322A4A;
         }
 
-        .thinking { display: flex; gap: 4px; align-self: flex-start; padding: 12px 16px; }
-        .thinking span {
-            width: 6px; height: 6px; border-radius: 50%;
-            background: #8B7FFF;
-            animation: hop 1s ease-in-out infinite;
+        .loading-bar-wrap {
+            align-self: flex-start;
+            width: 160px;
+            height: 6px;
+            background: #241D38;
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 6px 0;
         }
-        .thinking span:nth-child(2) { animation-delay: 0.15s; }
-        .thinking span:nth-child(3) { animation-delay: 0.3s; }
+        .loading-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #8B7FFF, #FFA23A);
+            border-radius: 999px;
+            animation: fill-approach 8s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+        }
+        @keyframes fill-approach {
+            0% { width: 0%; }
+            100% { width: 88%; }
+        }
+        .loading-bar-fill.complete {
+            animation: none;
+            width: 100% !important;
+            transition: width 0.2s ease-out;
+        }
 
         .input-row { display: flex; padding: 18px 24px; border-top: 1px solid #2E2645; gap: 10px; }
         #message-input {
@@ -325,17 +342,26 @@
 
         function showThinking() {
             const container = document.getElementById("messages");
-            const el = document.createElement("div");
-            el.className = "thinking";
-            el.id = "thinking-indicator";
-            el.innerHTML = "<span></span><span></span><span></span>";
-            container.appendChild(el);
+            const wrap = document.createElement("div");
+            wrap.className = "loading-bar-wrap";
+            wrap.id = "thinking-indicator";
+            const fill = document.createElement("div");
+            fill.className = "loading-bar-fill";
+            wrap.appendChild(fill);
+            container.appendChild(wrap);
             container.scrollTop = container.scrollHeight;
         }
 
         function hideThinking() {
             const el = document.getElementById("thinking-indicator");
-            if (el) el.remove();
+            if (!el) return;
+            const fill = el.querySelector(".loading-bar-fill");
+            if (fill) {
+                fill.classList.add("complete");
+                setTimeout(() => el.remove(), 200);
+            } else {
+                el.remove();
+            }
         }
 
         async function askServer(message, historyPairs) {
