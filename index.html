@@ -227,7 +227,7 @@
         // changes each time. Copy the "Running on public URL:" link
         // from Colab's output and paste it here, no trailing slash.
         // ============================================================
-        const GRADIO_SERVER_URL = "https://9fc9d3cdd9d64f1933.gradio.live";
+        const GRADIO_SERVER_URL = "https://PASTE-YOUR-LINK-HERE.gradio.live";
 
         const PERSONA = "### System:\nYou are Hop AI, a helpful and friendly AI assistant. You answer clearly and stay consistent about who you are.\n\n";
 
@@ -339,13 +339,35 @@
         }
 
         async function askServer(message, historyPairs) {
-            const response = await fetch(`${GRADIO_SERVER_URL}/api/chat`, {
+            const postResponse = await fetch(`${GRADIO_SERVER_URL}/gradio_api/call/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "text/plain" },
                 body: JSON.stringify({ data: [message, JSON.stringify(historyPairs), getClientId()] }),
             });
-            const result = await response.json();
-            return result.data[0];
+            const postResult = await postResponse.json();
+            const eventId = postResult.event_id;
+            if (!eventId) {
+                throw new Error("No event_id returned from server");
+            }
+
+            const getResponse = await fetch(`${GRADIO_SERVER_URL}/gradio_api/call/chat/${eventId}`);
+            const rawText = await getResponse.text();
+
+            let lastData = null;
+            for (const line of rawText.split("\n")) {
+                if (line.startsWith("data:")) {
+                    try {
+                        lastData = JSON.parse(line.slice(5).trim());
+                    } catch (e) {
+                        // ignore lines that aren't valid JSON
+                    }
+                }
+            }
+
+            if (Array.isArray(lastData) && lastData.length > 0) {
+                return lastData[0];
+            }
+            throw new Error("No valid response data found in server stream");
         }
 
         async function handleSend() {
