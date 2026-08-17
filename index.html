@@ -287,6 +287,58 @@
         #send-btn:hover { transform: translateY(-2px); }
         #send-btn svg { width: 16px; height: 16px; }
         button:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+        #mic-btn {
+            background: none;
+            border: none;
+            color: #9C93B8;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        #mic-btn:hover { background: #241D38; color: #F1EEFF; }
+        #mic-btn svg { width: 17px; height: 17px; }
+        #mic-btn.recording {
+            color: #F85149;
+            background: rgba(248, 81, 73, 0.12);
+            animation: mic-pulse 1.1s ease-in-out infinite;
+        }
+        @keyframes mic-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.35); }
+            50% { box-shadow: 0 0 0 6px rgba(248, 81, 73, 0); }
+        }
+
+        .voice-status {
+            font-size: 12px;
+            color: #9C93B8;
+            padding: 6px 4px 0 4px;
+            min-height: 16px;
+        }
+
+        .voice-label-picker {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 4px 0 4px;
+        }
+        .label-prompt { font-size: 12px; color: #726A8A; margin-right: 2px; }
+        .label-chip {
+            background: #241D38;
+            border: 1px solid #322A4A;
+            color: #F1EEFF;
+            font-size: 12px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .label-chip:hover { background: #2E2645; border-color: #8B7FFF; }
+        .label-chip.skip { color: #726A8A; }
     </style>
 </head>
 <body>
@@ -316,6 +368,14 @@
                                 </div>
                             </div>
                         </div>
+                        <div style="flex:1;"></div>
+                        <button id="mic-btn" aria-label="Voice">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="23"></line>
+                            </svg>
+                        </button>
                         <button id="send-btn" aria-label="Send">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="12" y1="19" x2="12" y2="5"></line>
@@ -323,6 +383,15 @@
                             </svg>
                         </button>
                     </div>
+                </div>
+                <div id="voice-status" class="voice-status"></div>
+                <div id="voice-label-picker" class="voice-label-picker" style="display:none;">
+                    <span class="label-prompt">Tag that clip:</span>
+                    <button class="label-chip" data-label="happy">happy</button>
+                    <button class="label-chip" data-label="sad">sad</button>
+                    <button class="label-chip" data-label="angry">angry</button>
+                    <button class="label-chip" data-label="calm">calm</button>
+                    <button class="label-chip skip" data-label="">skip</button>
                 </div>
             </div>
         </div>
@@ -454,12 +523,12 @@
             }
         }
 
-        async function askServer(message, historyPairs) {
+        async function askServer(message, historyPairs, voiceHint) {
             const postResponse = await fetch(`${GRADIO_SERVER_URL}/gradio_api/call/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    data: [message, JSON.stringify(historyPairs), getClientId()],
+                    data: [message, JSON.stringify(historyPairs), getClientId(), voiceHint || ""],
                     session_hash: getClientId(),
                 }),
             });
@@ -522,11 +591,15 @@
 
             let reply;
             try {
-                reply = await askServer(text, historyPairs);
+                reply = await askServer(text, historyPairs, pendingVoiceHint);
             } catch (err) {
                 console.error("Hop AI request failed:", err);
                 reply = "SERVERS ARE DOWN PLEASE COME BACK LATER";
             }
+            pendingVoiceHint = "";
+            document.getElementById("voice-status").textContent = "";
+            hideLabelPicker();
+            pendingAudioBlob = null;
 
             hideThinking();
             chat.messages.push({ role: "ai", text: reply });
@@ -572,6 +645,128 @@
             modelDropdown.style.display = "none";
             modelSelector.classList.remove("open");
         });
+
+        let pendingVoiceHint = "";
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let pendingAudioBlob = null;
+
+        function floatArrayFromAudioBuffer(audioBuffer) {
+            const channelData = audioBuffer.getChannelData(0);
+            return Array.from(channelData);
+        }
+
+        async function sendAudioForAnalysis(blob, label) {
+            const voiceStatus = document.getElementById("voice-status");
+            voiceStatus.textContent = "Analyzing voice...";
+
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+            const sampleRate = decoded.sampleRate;
+            const samples = floatArrayFromAudioBuffer(decoded);
+
+            try {
+                const postResponse = await fetch(`${GRADIO_SERVER_URL}/gradio_api/call/analyze_voice`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        data: [{ data: samples, sample_rate: sampleRate }, label || ""],
+                        session_hash: getClientId(),
+                    }),
+                });
+                const postResult = await postResponse.json();
+                const eventId = postResult.event_id;
+                if (!eventId) throw new Error("No event_id from analyze_voice");
+
+                const result = await new Promise((resolve, reject) => {
+                    const es = new EventSource(`${GRADIO_SERVER_URL}/gradio_api/call/analyze_voice/${eventId}`);
+                    let settled = false;
+                    function finish(fn, value) {
+                        if (settled) return;
+                        settled = true;
+                        es.close();
+                        fn(value);
+                    }
+                    es.addEventListener("complete", (e) => {
+                        try {
+                            const data = JSON.parse(e.data);
+                            finish(resolve, data);
+                        } catch (err) {
+                            finish(reject, err);
+                        }
+                    });
+                    es.addEventListener("error", () => finish(reject, new Error("Voice stream error")));
+                    setTimeout(() => finish(reject, new Error("Voice analysis timed out")), 20000);
+                });
+
+                const displayText = result[0] || "";
+                const hint = result[1] || "";
+                pendingVoiceHint = hint;
+                voiceStatus.textContent = displayText ? `Heard: ${displayText}` : "";
+            } catch (err) {
+                console.error("Voice analysis failed:", err);
+                voiceStatus.textContent = "Couldn't analyze voice — try again.";
+            }
+        }
+
+        function showLabelPicker() {
+            document.getElementById("voice-label-picker").style.display = "flex";
+        }
+
+        function hideLabelPicker() {
+            document.getElementById("voice-label-picker").style.display = "none";
+        }
+
+        document.querySelectorAll(".label-chip").forEach((chip) => {
+            chip.addEventListener("click", async () => {
+                const label = chip.getAttribute("data-label");
+                hideLabelPicker();
+                if (pendingAudioBlob) {
+                    await sendAudioForAnalysis(pendingAudioBlob, label);
+                    pendingAudioBlob = null;
+                }
+            });
+        });
+
+        async function toggleMic() {
+            const micBtn = document.getElementById("mic-btn");
+            const voiceStatus = document.getElementById("voice-status");
+
+            if (isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                micBtn.classList.remove("recording");
+                return;
+            }
+
+            hideLabelPicker();
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                recordedChunks = [];
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                };
+                mediaRecorder.onstop = () => {
+                    stream.getTracks().forEach((track) => track.stop());
+                    pendingAudioBlob = new Blob(recordedChunks, { type: "audio/webm" });
+                    voiceStatus.textContent = "Got it — tag that clip below.";
+                    showLabelPicker();
+                };
+                mediaRecorder.start();
+                isRecording = true;
+                micBtn.classList.add("recording");
+                voiceStatus.textContent = "Listening...";
+            } catch (err) {
+                console.error("Mic access failed:", err);
+                voiceStatus.textContent = "Microphone access denied or unavailable.";
+            }
+        }
+
+        document.getElementById("mic-btn").addEventListener("click", toggleMic);
 
         async function checkServerStatus() {
             const dot = document.querySelector(".wordmark .dot");
