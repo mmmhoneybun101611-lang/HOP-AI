@@ -20,7 +20,6 @@
         }
         .app { display: flex; height: 100vh; }
 
-        /* --- Sidebar --- */
         .sidebar {
             width: 260px;
             background: #1E1830;
@@ -128,7 +127,6 @@
         }
         .history-dropdown button:hover { background: #322A4A; }
 
-        /* --- Main --- */
         .main { flex: 1; display: flex; flex-direction: column; }
         .header {
             padding: 18px 24px;
@@ -448,7 +446,8 @@
             const timeoutId = setTimeout(() => controller.abort(), 3000);
 
             try {
-                const response = await fetch(`${GRADIO_SERVER_URL}/config`, {
+                const bustedUrl = `${GRADIO_SERVER_URL}/config?_=${Date.now()}`;
+                const response = await fetch(bustedUrl, {
                     signal: controller.signal,
                     cache: "no-store",
                 });
