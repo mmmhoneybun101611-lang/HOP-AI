@@ -377,24 +377,36 @@
                 throw new Error("No event_id returned from server: " + JSON.stringify(postResult));
             }
 
-            const getResponse = await fetch(`${GRADIO_SERVER_URL}/gradio_api/call/chat/${eventId}`);
-            const rawText = await getResponse.text();
+            return new Promise((resolve, reject) => {
+                const es = new EventSource(`${GRADIO_SERVER_URL}/gradio_api/call/chat/${eventId}`);
+                let settled = false;
 
-            let lastData = null;
-            for (const line of rawText.split("\n")) {
-                if (line.startsWith("data:")) {
-                    try {
-                        lastData = JSON.parse(line.slice(5).trim());
-                    } catch (e) {
-                        // ignore lines that aren't valid JSON
-                    }
+                function finish(fn, value) {
+                    if (settled) return;
+                    settled = true;
+                    es.close();
+                    fn(value);
                 }
-            }
 
-            if (Array.isArray(lastData) && lastData.length > 0) {
-                return lastData[0];
-            }
-            throw new Error("No valid response data found in server stream");
+                es.addEventListener("complete", (e) => {
+                    try {
+                        const data = JSON.parse(e.data);
+                        if (Array.isArray(data) && data.length > 0) {
+                            finish(resolve, data[0]);
+                        } else {
+                            finish(reject, new Error("Empty complete event from server"));
+                        }
+                    } catch (err) {
+                        finish(reject, err);
+                    }
+                });
+
+                es.addEventListener("error", () => {
+                    finish(reject, new Error("Stream connection error"));
+                });
+
+                setTimeout(() => finish(reject, new Error("Timed out waiting for reply")), 30000);
+            });
         }
 
         async function handleSend() {
